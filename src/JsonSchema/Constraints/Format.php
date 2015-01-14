@@ -221,7 +221,11 @@ class Format extends Constraint
             $fragment = substr($uri, 1);
         }
 
-        $isRelative = ($scheme !== null);
+        if ($scheme === null) {
+            $isRelative = true;
+        } else {
+            $isRelative = false;
+        }
 
         if (!$isRelative) {
             if ($host) {
@@ -246,21 +250,7 @@ class Format extends Constraint
             }
             return true;
         } else {
-            if ($scheme || $host || $userInfo || $port) {
-                return false;
-            }
-            if ($path) {
-                // Check path-only (no host) URI
-                if (substr($path, 0, 2) == '//') {
-                    return false;
-                }
-                return true;
-            }
-            if (! ($query || $fragment)) {
-                // No host, path, query or fragment - this is not a valid URI
-                return false;
-            }
-            return true;
+            return false;
         }
     }
 
