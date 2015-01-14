@@ -80,6 +80,12 @@ class Format extends Constraint
                 break;
 
             case 'uri':
+                if (!$this->validateUri($element)) {
+                    $this->addError($path, "Invalid URI format");
+                }
+                break;
+
+            case 'url':
                 if (null === filter_var($element, FILTER_VALIDATE_URL, FILTER_NULL_ON_FAILURE)) {
                     $this->addError($path, "Invalid URL format");
                 }
@@ -155,6 +161,107 @@ class Format extends Constraint
     protected function validatePhone($phone)
     {
         return preg_match('/^\+?(\(\d{3}\)|\d{3}) \d{3} \d{4}$/', $phone);
+    }
+
+    public function validateUri($uri)
+    {
+        $scheme = null;
+        $port = null;
+        $userInfo = null;
+        $host = null;
+        $path = null;
+        $fragment = null;
+        $query = null;
+
+        if (preg_match('/^([A-Za-z][A-Za-z0-9\.\+\-]*):/', $uri, $match)) {
+            $scheme = $match[1];
+        }
+
+        if (($scheme) !== null) {
+            $uri = substr($uri, strlen($scheme) + 1);
+        }
+
+        // Capture authority part
+        if (preg_match('|^//([^/\?#]*)|', $uri, $match)) {
+            $authority = $match[1];
+            $uri       = substr($uri, strlen($match[0]));
+            // Split authority into userInfo and host
+            if (strpos($authority, '@') !== false) {
+                // The userInfo can also contain '@' symbols; split $authority
+                // into segments, and set it to the last segment.
+                $segments  = explode('@', $authority);
+                $authority = array_pop($segments);
+                $userInfo  = implode('@', $segments);
+                unset($segments);
+            }
+            $nMatches = preg_match('/:[\d]{1,5}$/', $authority, $matches);
+            if ($nMatches === 1) {
+                $portLength = strlen($matches[0]);
+                $port = substr($matches[0], 1);
+                $port = (int) $port;
+                $authority = substr($authority, 0, -$portLength);
+            }
+            $host = $authority;
+        }
+
+        // Capture the path
+        if ($uri && preg_match('|^[^\?#]*|', $uri, $match)) {
+            $path = $match[0];
+            $uri = substr($uri, strlen($match[0]));
+        }
+
+        // Capture the query
+        if ($uri && preg_match('|^\?([^#]*)|', $uri, $match)) {
+            $query = $match[1];
+            $uri = substr($uri, strlen($match[0]));
+        }
+
+        // All that's left is the fragment
+        if ($uri && substr($uri, 0, 1) == '#') {
+            $fragment = substr($uri, 1);
+        }
+
+        $isRelative = ($scheme !== null);
+
+        if (!$isRelative) {
+            if ($host) {
+                if (strlen($path) > 0 && substr($path, 0, 1) != '/') {
+                    return false;
+                }
+                return true;
+            }
+            if ($userInfo || $port) {
+                return false;
+            }
+            if ($path) {
+                // Check path-only (no host) URI
+                if (substr($path, 0, 2) == '//') {
+                    return false;
+                }
+                return true;
+            }
+            if (! ($query || $fragment)) {
+                // No host, path, query or fragment - this is not a valid URI
+                return false;
+            }
+            return true;
+        } else {
+            if ($scheme || $host || $userInfo || $port) {
+                return false;
+            }
+            if ($path) {
+                // Check path-only (no host) URI
+                if (substr($path, 0, 2) == '//') {
+                    return false;
+                }
+                return true;
+            }
+            if (! ($query || $fragment)) {
+                // No host, path, query or fragment - this is not a valid URI
+                return false;
+            }
+            return true;
+        }
     }
 
     protected function validateHostname($host)
